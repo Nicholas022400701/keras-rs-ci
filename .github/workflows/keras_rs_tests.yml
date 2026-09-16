@@ -1,0 +1,76 @@
+name: keras-rs branch tests
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch of Nicholas022400701/keras-rs to test
+        type: string
+        default: fix-shuffle-ties-sort-by-scores
+
+permissions:
+  contents: read
+
+env:
+  KERAS_RS_REF: ${{ inputs.ref || 'fix-shuffle-ties-sort-by-scores' }}
+
+jobs:
+  cpu_tests:
+    name: CPU Tests (${{ matrix.backend }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [tensorflow, jax, torch]
+    env:
+      KERAS_BACKEND: ${{ matrix.backend }}
+    steps:
+      - name: Checkout keras-rs branch
+        uses: actions/checkout@v4
+        with:
+          repository: Nicholas022400701/keras-rs
+          ref: ${{ env.KERAS_RS_REF }}
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Show versions
+        run: |
+          python -c "import keras; print('keras', keras.__version__, 'backend', keras.backend.backend())"
+          pip list 2>/dev/null | grep -iE '^(torch|jax|tensorflow|keras) ' || true
+
+      - name: Metrics and losses tests
+        run: pytest -v keras_rs/src/metrics keras_rs/src/losses
+
+      - name: Full test suite
+        run: pytest keras_rs/
+
+  check_format:
+    name: Check the code format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout keras-rs branch
+        uses: actions/checkout@v4
+        with:
+          repository: Nicholas022400701/keras-rs
+          ref: ${{ env.KERAS_RS_REF }}
+          persist-credentials: false
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt --upgrade
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --hook-stage manual
